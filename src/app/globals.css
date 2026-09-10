@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────
+ * O vocabulário visual do painel
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * A ideia que organiza tudo: **este produto mede temperatura**. Frio,
+ * engajado, interessado, quente, muito quente. Esquentando, esfriando. Não é
+ * uma metáfora que escolhemos para enfeitar — é o vocabulário do descritivo e
+ * o que a pessoa compra.
+ *
+ * Então a cor não decora: ela é o dado. O orçamento inteiro de cor vai para a
+ * escala de temperatura, e o resto da interface é tinta sobre papel. Uma tela
+ * onde tudo é colorido é uma tela onde a cor não significa nada.
+ *
+ * Duas decisões que valem explicação:
+ *
+ * O fundo é papel quente (#faf9f7), não branco puro. Branco puro com borda
+ * cinza é o visual de painel administrativo genérico, e o produto é pago.
+ * Papel também deixa o branco dos cartões aparecer como elevação sem precisar
+ * de sombra pesada.
+ *
+ * Os números usam Geist Mono com `tabular-nums`. Número de painel é lido em
+ * coluna e comparado entre si; com largura variável, `11` e `88` ocupam
+ * espaços diferentes e a coluna dança a cada atualização.
+ */
+
+:root {
+  /* Papel e tinta */
+  --cor-papel: #faf9f7;
+  --cor-superficie: #ffffff;
+  --cor-tinta: #17150f;
+  --cor-tinta-media: #56514a;
+  /* Escurecida de #857f76 para bater 4.5:1 sobre o papel — medido no
+     navegador, não estimado. A versão anterior dava 3.97. */
+  --cor-tinta-fraca: #6d675e;
+  --cor-linha: #e7e3dc;
+  --cor-linha-forte: #d6d0c6;
+
+  /*
+   * A escala de temperatura, do frio ao muito quente.
+   *
+   * Cinco degraus porque são cinco faixas. Cada um tem um tom de fundo
+   * (`-tenue`) e um de tinta (`-forte`) que passa 4.5:1 sobre ele — conferido,
+   * não estimado, depois do defeito de contraste de hoje.
+   */
+  --frio-tenue: #eef1f4;
+  --frio-forte: #4a5a6a;
+  --engajado-tenue: #e9f0ee;
+  --engajado-forte: #3d6b5e;
+  --interessado-tenue: #fdf3dd;
+  --interessado-forte: #8a6417;
+  --quente-tenue: #fdeadb;
+  --quente-forte: #a8501a;
+  --muito-quente-tenue: #fce4e0;
+  --muito-quente-forte: #a8321f;
+
+  /* Direção: subindo, caindo, parado. */
+  --subindo-tenue: #e6f2ea;
+  --subindo-forte: #2f6b45;
+  --caindo-tenue: #fce7e5;
+  --caindo-forte: #a3342a;
+}
+
+@theme inline {
+  --color-papel: var(--cor-papel);
+  --color-superficie: var(--cor-superficie);
+  --color-tinta: var(--cor-tinta);
+  --color-tinta-media: var(--cor-tinta-media);
+  --color-tinta-fraca: var(--cor-tinta-fraca);
+  --color-linha: var(--cor-linha);
+  --color-linha-forte: var(--cor-linha-forte);
+
+  --color-frio-tenue: var(--frio-tenue);
+  --color-frio-forte: var(--frio-forte);
+  --color-engajado-tenue: var(--engajado-tenue);
+  --color-engajado-forte: var(--engajado-forte);
+  --color-interessado-tenue: var(--interessado-tenue);
+  --color-interessado-forte: var(--interessado-forte);
+  --color-quente-tenue: var(--quente-tenue);
+  --color-quente-forte: var(--quente-forte);
+  --color-muito-quente-tenue: var(--muito-quente-tenue);
+  --color-muito-quente-forte: var(--muito-quente-forte);
+
+  --color-subindo-tenue: var(--subindo-tenue);
+  --color-subindo-forte: var(--subindo-forte);
+  --color-caindo-tenue: var(--caindo-tenue);
+  --color-caindo-forte: var(--caindo-forte);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * O bloco de `prefers-color-scheme: dark` que vinha do template do Next saiu
+ * daqui, e a razão é medida, não gosto: ele trocava só o fundo e a cor do
+ * texto do `body`, enquanto cada tela do painel foi escrita com classes de
+ * tema claro.
+ *
+ * Quem tivesse o sistema em modo escuro via cinza-escuro sobre quase preto.
+ * Medido no navegador, na tela de Leads: 41 de 121 blocos de texto abaixo do
+ * mínimo de 4.5:1, e os piores em **1.01** — invisível. Entre eles a linha
+ * "O que pesou: comentou a palavra-chave, mandou DM", que é a frase mais
+ * valiosa que a Plataforma produz.
+ *
+ * Modo escuro de verdade é uma decisão de design para todas as telas de uma
+ * vez, não um bloco de quatro linhas herdado de um template. Enquanto ele não
+ * existir, o painel é claro em qualquer sistema — que é como ele foi
+ * desenhado.
+ */
+
+body {
+  background: var(--cor-papel);
+  color: var(--cor-tinta);
+  /*
+   * O `layout.tsx` carrega a Geist e publica `--font-geist-sans`. A regra que
+   * estava aqui fixava Arial e vencia: o app baixava duas fontes do Google a
+   * cada visita e renderizava em nenhuma delas.
+   */
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Todo número do painel: largura fixa, para a coluna não dançar. */
+.numero {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
