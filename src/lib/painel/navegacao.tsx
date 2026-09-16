@@ -14,3 +14,8 @@ export const LINKS_DO_PAINEL: readonly LinkDoPainel[] = [
   { href: '/disparador/templates', label: 'Templates', icone: <IconeGlobo /> },
   { href: '/disparador/tarifas', label: 'Tarifas', icone: <IconeCarrinho /> },
 ];
+
+export type ConviteDeUpgrade = { href: string; label: string };
+
+/** Produto gratuito do Fluxo: sai sem oferta, por decisão. */
+export const CONVITE_DE_UPGRADE: ConviteDeUpgrade | null = null;
