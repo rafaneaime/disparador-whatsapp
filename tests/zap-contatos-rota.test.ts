@@ -42,7 +42,7 @@ describe('POST contatos colados', () => {
   });
 
   it('grava só os canônicos únicos com data do servidor e origem padrão', async () => {
-    sql.mockResolvedValue([{ telefone: '5511987654321' }]);
+    sql.mockResolvedValue([{ telefone: '5511987654321', inserido: true }]);
     const resposta = await POST(pedido({ texto: '(11) 98765-4321\n551187654321\nlixo', consentimento: true }));
     expect(resposta.status).toBe(200);
     expect(await resposta.json()).toMatchObject({ ok: true,
@@ -54,24 +54,37 @@ describe('POST contatos colados', () => {
       ],
     });
     expect(sql).toHaveBeenCalledTimes(1);
-    expect(consulta().valores).toEqual(['colado-no-painel', ['5511987654321']]);
+    expect(consulta().valores).toEqual(['colado-no-painel', ['5511987654321'], [null]]);
     expect(consulta().texto).toContain("'subscribed'");
     expect(consulta().texto).toContain('now()');
   });
 
   it('segunda colagem não duplica nem reescreve a primeira evidência, mesmo com outra origem', async () => {
-    sql.mockResolvedValueOnce([{ telefone: '5511987654321' }]).mockResolvedValueOnce([]);
+    sql.mockResolvedValueOnce([{ telefone: '5511987654321', inserido: true }])
+      .mockResolvedValueOnce([{ telefone: '5511987654321', inserido: false }]);
     await POST(pedido({ texto: '5511987654321', consentimento: true, origem: 'primeiro-sim' }));
     const segunda = await POST(pedido({ texto: '551187654321', consentimento: true, origem: 'novo-sim' }));
     expect(await segunda.json()).toMatchObject({
       contagens: { cadastrados: 0, existentes: 1 },
       linhas: [{ telefone: '5511987654321', resultado: 'existente' }],
     });
-    // O banco impõe a idempotência inclusive sob concorrência. Não há UPDATE
-    // que possa trocar data/origem ou reativar um opt-out durante uma colagem.
+    /*
+     * O que o conflito pode tocar, e o que nao pode.
+     *
+     * Ate 18/09/2026 isto era `do nothing`, e o guarda proibia a palavra
+     * `update` inteira. A regra por tras dela nunca foi "nao atualize nada":
+     * era que nenhuma colagem troque data, origem ou consentimento — isso
+     * reescreveria a evidencia do primeiro sim, ou reativaria quem se
+     * descadastrou. Preencher nome vazio nao faz nada disso, e sem isso quem
+     * ja esta na lista nunca ganharia nome.
+     */
     for (const indice of [0, 1]) {
-      expect(consulta(indice).texto).toContain('on conflict (telefone) do nothing');
-      expect(consulta(indice).texto).not.toMatch(/\bupdate\b/i);
+      const texto = consulta(indice).texto;
+      expect(texto).toContain('on conflict (telefone) do update set nome = coalesce(zap_contacts.nome, excluded.nome)');
+      const depoisDoConflito = texto.slice(texto.indexOf('on conflict'));
+      for (const proibida of ['consentimento', 'descadastro_em', 'telefone =']) {
+        expect(depoisDoConflito, proibida).not.toContain(proibida);
+      }
     }
     expect(consulta(0).valores).toContain('primeiro-sim');
     expect(consulta(1).valores).toContain('novo-sim');

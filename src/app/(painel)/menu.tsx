@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { LinkDoPainel } from '@/lib/painel/navegacao';
+import type { ConviteDeUpgrade, LinkDoPainel } from '@/lib/painel/navegacao';
 
 /**
  * O menu do painel.
@@ -16,12 +16,18 @@ import type { LinkDoPainel } from '@/lib/painel/navegacao';
  * na exportação da base. Este componente não sabe quais rotas existem, e é
  * assim que ele pode ser base sem vazar a Plataforma.
  */
-export function MenuDoPainel({ links }: { links: readonly LinkDoPainel[] }) {
+export function MenuDoPainel({
+  links,
+  upgrade = null,
+}: {
+  links: readonly LinkDoPainel[];
+  upgrade?: ConviteDeUpgrade | null;
+}) {
   const caminho = usePathname();
 
   return (
     <nav className="-mx-6 mb-8 overflow-x-auto border-b border-linha px-6">
-      <ul className="flex min-w-max gap-1 pb-px">
+      <ul className="flex min-w-max items-center gap-1 pb-px">
         {links.map((link) => {
           // A raiz casa exata; o resto casa por prefixo, para /contatos/12
           // continuar acendendo "Contatos".
@@ -49,6 +55,25 @@ export function MenuDoPainel({ links }: { links: readonly LinkDoPainel[] }) {
             </li>
           );
         })}
+        {/*
+          Botão, e não mais uma aba: aba é lugar dentro do painel, e isto leva
+          para fora dele — a página de vendas, em outra aba do navegador, para
+          a pessoa não perder o que estava fazendo. `ml-auto` o encosta à
+          direita, longe das telas de trabalho.
+        */}
+        {upgrade && (
+          <li className="ml-auto pl-4">
+            <a
+              href={upgrade.href}
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-1.5 rounded-full bg-tinta px-3 py-1.5 text-sm font-medium text-papel transition-opacity hover:opacity-85"
+            >
+              <span aria-hidden="true">↑</span>
+              {upgrade.label}
+            </a>
+          </li>
+        )}
       </ul>
     </nav>
   );

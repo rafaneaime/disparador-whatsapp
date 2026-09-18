@@ -30,17 +30,32 @@ export type EntradaContato = {
  * A colagem não edita contatos existentes: o primeiro sim e todo opt-out
  * ficam intactos. O unique decide inclusive entre duas chamadas simultâneas.
  * A instalação tem um único operador, autenticado pela senha do painel.
+ *
+ * **A única exceção é o nome vazio.** `coalesce(zap_contacts.nome, ...)` só
+ * escreve onde não havia nada: quem já tem nome mantém o que tem, e nenhuma
+ * colagem troca o nome de ninguém. Consentimento, origem e data continuam
+ * intocados — uma colagem nova nunca reativa quem se descadastrou.
+ *
+ * `xmax = 0` é como o Postgres deixa distinguir a linha que **nasceu** desta
+ * chamada da que só foi tocada: sem isso, o `do update` devolveria todas e a
+ * tela diria "cadastrado" para quem já existia.
  */
-export async function inserirContatosColados(telefones: string[], origem: string): Promise<string[]> {
-  if (telefones.length === 0) return [];
+export async function inserirContatosColados(
+  contatos: { telefone: string; nome: string | null }[],
+  origem: string,
+): Promise<string[]> {
+  if (contatos.length === 0) return [];
+  const telefones = contatos.map((contato) => contato.telefone);
+  const nomes = contatos.map((contato) => contato.nome);
   const rows = (await sql`
-    insert into zap_contacts (telefone, consentimento, consentimento_origem, consentimento_em)
-    select telefone, 'subscribed', ${origem}, now()
-    from unnest(${telefones}::text[]) as entrada(telefone)
-    on conflict (telefone) do nothing
-    returning telefone
-  `) as { telefone: string }[];
-  return rows.map((row) => row.telefone);
+    insert into zap_contacts (telefone, nome, consentimento, consentimento_origem, consentimento_em)
+    select telefone, nome, 'subscribed', ${origem}, now()
+    from unnest(${telefones}::text[], ${nomes}::text[]) as entrada(telefone, nome)
+    on conflict (telefone) do update set
+      nome = coalesce(zap_contacts.nome, excluded.nome)
+    returning telefone, (xmax = 0) as inserido
+  `) as { telefone: string; inserido: boolean }[];
+  return rows.filter((row) => row.inserido).map((row) => row.telefone);
 }
 
 export async function salvarContato(contato: EntradaContato): Promise<number> {
