@@ -29,11 +29,16 @@ describe('cron authorization', () => {
   const request = (authorization?: string) => new Request('https://example.test/cron', {
     headers: authorization ? { authorization } : {},
   });
-  it('fails closed when the secret is absent', async () => {
+  /*
+   * Mudou de propósito em 29/09/2026. Fechar sem o segredo parava a renovação
+   * do token do Instagram em toda instalação feita pelo guia — que não pede
+   * essa variável em passo nenhum. O painel da Amanda atualizou sem ela e o
+   * agendamento passou a responder 503.
+   */
+  it('deixa a rotina rodar quando não há segredo definido', () => {
     delete process.env.CRON_SECRET;
-    const denied = authorizeCron(request());
-    expect(denied?.status).toBe(503);
-    expect(await denied?.json()).toMatchObject({ erro: expect.stringContaining('CRON_SECRET') });
+    expect(authorizeCron(request())).toBeNull();
+    expect(authorizeCron(request('Bearer qualquer'))).toBeNull();
   });
   it('requires the configured bearer token', () => {
     process.env.CRON_SECRET = 'secret';
