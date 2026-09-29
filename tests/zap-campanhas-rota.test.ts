@@ -71,11 +71,11 @@ describe('sessão e validação de campanhas', () => {
     expect(sql).toHaveBeenCalledTimes(1);
   });
 
-  it('recusa variáveis conhecidas antes de criar a campanha', async () => {
+  it('recusa template com variável quando a campanha não diz o que as preenche', async () => {
     sql.mockResolvedValueOnce([{ ...template, componentes: [{ type: 'BODY', text: 'Olá {{1}}' }] }]);
     const r = await criar(pedido({ nome: 'Teste', templateId: 7, contatos: [1] }));
     expect(r.status).toBe(400);
-    expect((await r.json()).erro).toMatch(/sem variáveis/);
+    expect((await r.json()).erro).toMatch(/Diga o que preenche/);
     expect(sql).toHaveBeenCalledTimes(1);
   });
 
@@ -85,7 +85,7 @@ describe('sessão e validação de campanhas', () => {
     expect(r.status).toBe(201);
     expect(await r.json()).toEqual({ ok: true, id: 8, enfileirados: 7, recusadosPorConsentimento: 3 });
     expect(consulta(1).texto).toContain("'draft'");
-    expect(consulta(1).valores).toEqual(['Teste', 7, '{}']);
+    expect(consulta(1).valores).toEqual(['Teste', 7, '[]']);
     expect(consulta(2).texto).toContain("c.consentimento = 'subscribed' and c.descadastro_em is null");
     expect(consulta(2).valores).toContainEqual([1,2,3,4,5,6,7,8,9,10]);
     expect(sql).toHaveBeenCalledTimes(3);
@@ -123,7 +123,9 @@ describe('drenagem de um lote', () => {
     const r = await disparar(pedido(), contexto);
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ enviadas: 1, falhas: 0, pendentes: 0 });
-    expect(enviarTemplate.mock.calls[0][1]).toEqual({ para: '5511987654321', template: 'hello_world', idioma: 'en_US' });
+    // Template sem variável vai com a lista vazia: o adaptador é quem decide
+    // não mandar `components`, e essa decisão tem teste próprio.
+    expect(enviarTemplate.mock.calls[0][1]).toEqual({ para: '5511987654321', template: 'hello_world', idioma: 'en_US', variaveis: [] });
     expect(consulta(4).valores).toContain('enviada');
     expect(consulta(4).valores).toContain('wamid.ID_PRIVADO');
     expect(consulta(4).valores).toContain(consulta(2).valores[0]);

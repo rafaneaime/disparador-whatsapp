@@ -35,7 +35,10 @@ it('formulário recebe só templates aprovados e contatos elegíveis da página'
   expect(html).toContain('/disparador/campanhas/8');
   expect(html).toContain('hello_world');
   expect(html).toContain('Ana elegível');
-  expect(html).not.toMatch(/rejeitado|com_variavel|Bia sem consentimento|Caio descadastrado/);
+  // Template com variável agora é oferecido: a tela pergunta o que preenche
+  // cada uma. O que continua de fora é o não aprovado e quem não autorizou.
+  expect(html).toContain('com_variavel');
+  expect(html).not.toMatch(/rejeitado|Bia sem consentimento|Caio descadastrado/);
 });
 
 it('criação começa desabilitada até informar nome, template e contatos', () => {

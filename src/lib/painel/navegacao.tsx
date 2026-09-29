@@ -5,6 +5,7 @@ export type LinkDoPainel = {
   href: string;
   label: string;
   icone: ReactNode;
+  caminhos?: readonly string[];
 };
 
 export const LINKS_DO_PAINEL: readonly LinkDoPainel[] = [
@@ -16,6 +17,7 @@ export const LINKS_DO_PAINEL: readonly LinkDoPainel[] = [
 ];
 
 export type ConviteDeUpgrade = { href: string; label: string };
+export const NOME_DO_PAINEL = 'Disparador';
 
 /** Produto gratuito do Fluxo: sai sem oferta, por decisão. */
 export const CONVITE_DE_UPGRADE: ConviteDeUpgrade | null = null;

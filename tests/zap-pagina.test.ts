@@ -45,7 +45,7 @@ describe('página do disparador', () => {
    * O que vale nos dois: existe entrada de menu que leva à tela.
    */
   it('pode ser aberta pelo menu do painel', () => {
-    const link = LINKS_DO_PAINEL.find((link) => link.href === '/disparador');
+    const link = LINKS_DO_PAINEL.find((link) => link.href === '/disparador' || link.caminhos?.includes('/disparador'));
     expect(link?.label).toBeTruthy();
   });
   it('abre sem nenhuma credencial Meta e sem consultar rede', async () => {

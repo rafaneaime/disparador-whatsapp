@@ -32,7 +32,7 @@ export function SincronizarTemplates() {
     finally { setOcupado(false); }
   }
   return <Cartao className="mb-5 p-5">
-    <p className="mb-3 text-sm text-tinta-media">Traga os templates da Meta, incluindo o hello_world da conta de teste. Use templates sem variáveis.</p>
+    <p className="mb-3 text-sm text-tinta-media">Traga os templates da Meta, incluindo o hello_world da conta de teste. Template com {'{{1}}'} funciona: a tela pergunta o que preenche cada variável.</p>
     <Botao tipo="secundario" onClick={sincronizar} disabled={ocupado}>{ocupado ? 'Sincronizando…' : 'Sincronizar templates'}</Botao>
     {mensagem && <p role="status" className="mt-3 text-sm">{mensagem}</p>}
   </Cartao>;
@@ -109,13 +109,15 @@ function CustoEstimado({ telefones, categoria, tarifas }: {
 }
 
 export function CriarCampanha({ templates, contatos, tarifas = [] }: {
-  templates: { id: number; nome: string; idioma: string; categoria?: string | null }[];
+  templates: { id: number; nome: string; idioma: string; categoria?: string | null; variaveis?: number }[];
   contatos: { id: number; nome: string | null; telefone: string }[];
   tarifas?: readonly Tarifa[];
 }) {
   const router = useRouter();
   const [nome, setNome] = useState('');
   const [templateId, setTemplateId] = useState('');
+  // Uma entrada por `{{n}}` do template escolhido, na ordem.
+  const [variaveis, setVariaveis] = useState<{ origem: 'nome' | 'fixo'; texto: string }[]>([]);
   const [selecionados, setSelecionados] = useState<number[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
@@ -129,7 +131,12 @@ export function CriarCampanha({ templates, contatos, tarifas = [] }: {
     setErro('');
     try {
       const r = await fetch('/api/painel/zap/campanhas', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, templateId: Number(templateId), contatos: selecionados }) });
+        body: JSON.stringify({
+          nome, templateId: Number(templateId), contatos: selecionados,
+          variaveis: variaveis.map(v => v.origem === 'nome'
+            ? { origem: 'nome', padrao: v.texto }
+            : { origem: 'fixo', texto: v.texto }),
+        }) });
       const dados = await r.json();
       if (!r.ok) { setErro(dados.erro || 'Não foi possível criar a campanha.'); return; }
       setResultado(dados);
@@ -149,6 +156,36 @@ export function CriarCampanha({ templates, contatos, tarifas = [] }: {
           {templates.map(t => <option value={t.id} key={t.id}>{t.nome} ({t.idioma})</option>)}
         </select>
       </label>
+      {/*
+        O que preenche cada `{{n}}`. Só aparece para template que tem variável,
+        e some ao trocar por um que não tem — valor de sobra faria a Meta
+        recusar cada mensagem da campanha.
+      */}
+      {Array.from({ length: templates.find(t => String(t.id) === templateId)?.variaveis ?? 0 }, (_, i) => {
+        const atual = variaveis[i] ?? { origem: 'nome' as const, texto: '' };
+        const trocar = (mudanca: Partial<typeof atual>) => setVariaveis(lista => {
+          const copia = Array.from({ length: templates.find(t => String(t.id) === templateId)?.variaveis ?? 0 },
+            (_, j) => lista[j] ?? { origem: 'nome' as const, texto: '' });
+          copia[i] = { ...atual, ...mudanca };
+          return copia;
+        });
+        return <div key={i} className="grid gap-2 sm:grid-cols-[auto_1fr]">
+          <label className="flex flex-col gap-1 text-sm">{`O que entra em {{${i + 1}}}`}
+            <select className={ESTILO_CAMPO} value={atual.origem} disabled={ocupado || !!resultado}
+              onChange={e => trocar({ origem: e.target.value as 'nome' | 'fixo' })}>
+              <option value="nome">Nome do contato</option>
+              <option value="fixo">Texto fixo</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            {atual.origem === 'nome' ? 'Se o contato estiver sem nome, escrever' : 'Texto'}
+            <input className={ESTILO_CAMPO} value={atual.texto} maxLength={200} required
+              disabled={ocupado || !!resultado}
+              placeholder={atual.origem === 'nome' ? 'tudo bem' : ''}
+              onChange={e => trocar({ texto: e.target.value })} />
+          </label>
+        </div>;
+      })}
       {templates.length === 0 && <p className="text-sm text-tinta-media">Sincronize os templates acima para carregar as mensagens aprovadas.</p>}
       <CustoEstimado
         telefones={contatos.filter(c => selecionados.includes(c.id)).map(c => c.telefone)}

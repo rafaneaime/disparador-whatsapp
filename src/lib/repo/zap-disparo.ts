@@ -27,9 +27,13 @@ export async function iniciarCampanha(id: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function telefoneDoContato(id: number): Promise<string | null> {
-  const rows = await sql`select telefone from zap_contacts where id = ${id}`;
-  return (rows[0]?.telefone as string | undefined) ?? null;
+/** O telefone e o nome: o nome é o que preenche `{{1}}` quando a campanha pede. */
+export async function contatoDoDisparo(
+  id: number,
+): Promise<{ telefone: string; nome: string | null } | null> {
+  const rows = await sql`select telefone, nome from zap_contacts where id = ${id}`;
+  const linha = rows[0] as { telefone: string; nome: string | null } | undefined;
+  return linha ?? null;
 }
 
 /** Complemento transitório da fila provada; nunca altera uma reserva de outro lote. */

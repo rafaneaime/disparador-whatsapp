@@ -4,11 +4,15 @@ import { redirect } from 'next/navigation';
 import { env } from './env';
 
 export const SESSION_COOKIE = 'adeus_sessao';
+export const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 // O valor do cookie é derivado da senha: trocar PANEL_PASSWORD invalida
 // todas as sessões automaticamente.
-export function sessionValue(): string {
-  return createHmac('sha256', env.panelPassword()).update('painel-ok').digest('hex');
+export function createSession(now = Date.now()): string {
+  const expires = Math.floor(now / 1000) + SESSION_MAX_AGE_SECONDS;
+  const payload = `v1.${expires}`;
+  const signature = createHmac('sha256', env.panelPassword()).update(payload).digest('hex');
+  return `${payload}.${signature}`;
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -21,7 +25,19 @@ function safeEqual(a: string, b: string): boolean {
 export async function isLoggedIn(): Promise<boolean> {
   if (!temSenhaConfigurada()) return false;
   const value = (await cookies()).get(SESSION_COOKIE)?.value;
-  return value ? safeEqual(value, sessionValue()) : false;
+  return verifySession(value);
+}
+
+export function verifySession(value: string | undefined, now = Date.now()): boolean {
+  if (!temSenhaConfigurada() || !value || value.length > 100) return false;
+  const match = /^v1\.([1-9]\d{9})\.([a-f0-9]{64})$/.exec(value);
+  if (!match) return false;
+  const expires = Number(match[1]);
+  const current = Math.floor(now / 1000);
+  if (expires <= current || expires > current + SESSION_MAX_AGE_SECONDS) return false;
+  const expected = createHmac('sha256', env.panelPassword())
+    .update(`v1.${match[1]}`).digest('hex');
+  return safeEqual(match[2], expected);
 }
 
 /**

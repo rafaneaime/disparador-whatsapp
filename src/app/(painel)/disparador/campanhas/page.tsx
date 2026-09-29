@@ -2,7 +2,7 @@ import { Cartao, Secao, TituloDaTela, Vazio } from '@/lib/painel/ui';
 import { listarCampanhas } from '@/lib/repo/zap-disparo';
 import { listarTemplates } from '@/lib/repo/zap-templates';
 import { listarContatos } from '@/lib/repo/zap-contacts';
-import { temVariaveis } from '@/lib/zap/campanhas';
+import { contarVariaveis } from '@/lib/zap/variaveis';
 import { ESTADOS_CAMPANHA } from '@/lib/zap/campanhas-ui';
 import { tarifasVigentes } from '@/lib/repo/zap-tarifas';
 import { CriarCampanha, SincronizarTemplates } from './acoes';
@@ -21,10 +21,14 @@ export default async function CampanhasPage() {
       <TituloDaTela titulo="Campanhas de WhatsApp" pergunta="Escolha uma mensagem aprovada e quem autorizou recebê-la." />
       <SincronizarTemplates />
       <CriarCampanha
-        templates={templates.filter(t => t.estado === 'approved' && !temVariaveis(t.componentes))
+        templates={templates.filter(t => t.estado === 'approved')
           // `categoria_meta` é a que a Meta devolveu, e é por ela que ela cobra.
           // Usar a pedida daria uma estimativa menor que a fatura.
-          .map(t => ({ id: t.id, nome: t.nome, idioma: t.idioma, categoria: t.categoria_meta }))}
+          .map(t => ({
+            id: t.id, nome: t.nome, idioma: t.idioma, categoria: t.categoria_meta,
+            // Quantos `{{n}}`: é o que faz a tela pedir o que preenche cada um.
+            variaveis: contarVariaveis(t.componentes),
+          }))}
         contatos={contatos.filter(c => c.consentimento === 'subscribed' && c.descadastro_em === null)
           .map(c => ({ id: c.id, nome: c.nome, telefone: c.telefone }))}
         tarifas={tarifas}

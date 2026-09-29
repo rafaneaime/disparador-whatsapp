@@ -5,7 +5,8 @@ export type EstadoCampanha = 'draft' | 'queued' | 'running' | 'paused' | 'comple
 export async function criarCampanha(campanha: {
   nome: string;
   template_id: number;
-  variaveis: Record<string, unknown>;
+  /** O que preenche `{{1}}`, `{{2}}`… — ver `lib/zap/variaveis.ts`. */
+  variaveis: unknown;
 }): Promise<number> {
   const rows = (await sql`
     insert into zap_campaigns (nome, template_id, variaveis, estado)

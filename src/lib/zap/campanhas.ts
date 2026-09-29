@@ -2,7 +2,8 @@
 import { criarCampanha } from '../repo/zap-campaigns';
 import { enfileirarCampanha, reivindicarLote, marcarResultado, type ResultadoEnvio } from '../repo/zap-messages';
 import { acharTemplate, acharTemplatePorId, gravarTemplateCriado, sincronizarResumoTemplates, type EstadoTemplate } from '../repo/zap-templates';
-import { acharCampanha, iniciarCampanha, telefoneDoContato, devolverPendente, concluirSeTerminou, contarMensagens } from '../repo/zap-disparo';
+import { acharCampanha, iniciarCampanha, contatoDoDisparo, devolverPendente, concluirSeTerminou, contarMensagens } from '../repo/zap-disparo';
+import { contarVariaveis, lerVariaveis, resolverVariaveis } from './variaveis';
 import { lerCredenciais } from './credenciais';
 import { componentesParaMeta, validarRascunho } from './template';
 import { criarTemplate, enviarTemplate, listarTemplates } from './meta';
@@ -112,9 +113,21 @@ export async function criarCampanhaDoPainel(corpo: unknown) {
   if (template.estado !== 'approved') {
     throw new ErroCampanha(`O template não está aprovado (${template.estado}). ${template.motivo_rejeicao || 'Sincronize os templates e confira a aprovação na Meta.'}`);
   }
-  if (temVariaveis(template.componentes)) throw new ErroCampanha('Escolha um template sem variáveis.');
+  const quantas = contarVariaveis(template.componentes);
+  const variaveis = lerVariaveis(c.variaveis ?? []) ?? null;
+  if (variaveis === null) throw new ErroCampanha('Não entendi o que preenche as variáveis deste template.');
+  if (variaveis.length !== quantas) {
+    throw new ErroCampanha(quantas === 0
+      ? 'Este template não tem variáveis.'
+      : `Diga o que preenche cada uma das ${quantas} variável(is) deste template.`);
+  }
+  // Texto fixo vazio nunca chega ao envio: a Meta recusaria cada mensagem, uma
+  // a uma, e a campanha inteira apareceria como falha sem motivo legível.
+  const semTexto = variaveis.findIndex((v) => v.origem === 'fixo' && !v.texto);
+  if (semTexto >= 0) throw new ErroCampanha(`Escreva o texto da variável {{${semTexto + 1}}}.`);
+
   const contatos = [...new Set(c.contatos as number[])];
-  const id = await criarCampanha({ nome: c.nome.trim(), template_id: template.id, variaveis: {} });
+  const id = await criarCampanha({ nome: c.nome.trim(), template_id: template.id, variaveis });
   const enfileirados = await enfileirarCampanha(id, contatos);
   return { ok: true, id, enfileirados, recusadosPorConsentimento: contatos.length - enfileirados };
 }
@@ -151,8 +164,16 @@ export async function dispararLote(id: number) {
   }
   const creds = credenciais();
   if (campanha.template_estado !== 'approved') throw new ErroCampanha('O template não está aprovado. Sincronize os templates antes de disparar.');
-  if (temVariaveis(campanha.componentes) || Object.keys(campanha.variaveis).length) {
-    throw new ErroCampanha('Escolha um template sem variáveis.');
+
+  // Quantas variáveis o template tem, e o que a campanha diz sobre cada uma.
+  // As duas contas precisam bater: template alterado depois da campanha criada
+  // mandaria valor a mais ou a menos, e a Meta recusaria cada mensagem.
+  const quantas = contarVariaveis(campanha.componentes);
+  const variaveis = lerVariaveis(campanha.variaveis) ?? [];
+  if (variaveis.length !== quantas) {
+    throw new ErroCampanha(quantas === 0
+      ? 'Este template não tem variáveis, mas a campanha foi criada com valores. Crie a campanha de novo.'
+      : `Este template tem ${quantas} variável(is), e a campanha define ${variaveis.length}. Crie a campanha de novo escolhendo o que preenche cada uma.`);
   }
   if (!await iniciarCampanha(id)) throw new ErroCampanha('O estado da campanha mudou. Atualize a página.', 409);
   const lote = randomUUID();
@@ -163,11 +184,18 @@ export async function dispararLote(id: number) {
   for (const mensagem of mensagens) {
     let resultado: ResultadoEnvio | { estado: 'pendente'; erro_codigo: string; erro_texto: string };
     try {
-      const telefone = await telefoneDoContato(mensagem.contact_id);
-      if (!telefone) {
+      const contato = await contatoDoDisparo(mensagem.contact_id);
+      const valores = contato ? resolverVariaveis(variaveis, contato) : null;
+      if (!contato) {
         resultado = { estado: 'falhou', erro_codigo: 'CONTATO_AUSENTE', erro_texto: 'O contato não está mais disponível para envio.' };
+      } else if (valores && !valores.ok) {
+        // Uma mensagem falha sozinha; as outras da campanha seguem.
+        resultado = { estado: 'falhou', erro_codigo: 'VARIAVEL_SEM_VALOR', erro_texto: valores.erro };
       } else {
-        const envio = await enviarTemplate(creds, { para: telefone, template: campanha.template_nome, idioma: campanha.idioma }, buscar);
+        const envio = await enviarTemplate(creds, {
+          para: contato.telefone, template: campanha.template_nome, idioma: campanha.idioma,
+          variaveis: valores?.ok ? valores.valores : [],
+        }, buscar);
         resultado = envio.ok ? { estado: 'enviada', meta_message_id: envio.dados.id }
           : { estado: envio.erro.tipo === 'transitorio' ? 'pendente' : 'falhou',
             erro_codigo: envio.erro.codigo, erro_texto: envio.erro.humano.replace(/wamid\.[^\s"'<>]+/gi, '[id omitido]') };

@@ -18,7 +18,14 @@ export type EnvioDeTemplate = {
   para: string;
   template: string;
   idioma: string;
-  /** Só o envio sem variáveis foi observado; preenchidas são recusadas antes da rede. */
+  /**
+   * Os valores de `{{1}}`, `{{2}}`… na ordem. Vazio, o template vai sem corpo
+   * de parâmetros — que é o certo para template sem variável.
+   *
+   * O formato é o **posicional** da Cloud API, que é o que o nosso criador de
+   * templates escreve. Template criado com nome de parâmetro (`parameter_name`)
+   * é outro formato, e não é o que sai daqui.
+   */
   variaveis?: readonly string[];
 };
 
@@ -148,15 +155,22 @@ export async function enviarTemplate(
   envio: EnvioDeTemplate,
   buscar: typeof fetch = fetch,
 ): Promise<ResultadoDaMeta<{ id: string; estado: string }>> {
-  if (envio.variaveis?.length) {
+  // Valor vazio a Meta recusa com um erro que não diz qual variável falhou.
+  // Recusar aqui nomeia a posição, e não gasta uma requisição.
+  const vazia = (envio.variaveis ?? []).findIndex((valor) => valor.trim() === '');
+  if (vazia >= 0) {
     return {
       ok: false,
       erro: {
-        tipo: 'permanente', codigo: 'VARIAVEIS_NAO_SUPORTADAS',
-        humano: 'O envio com variáveis ainda não tem formato validado neste adaptador. Use um template sem variáveis.',
+        tipo: 'permanente', codigo: 'VARIAVEL_VAZIA',
+        humano: `A variável {{${vazia + 1}}} ficou sem valor. A Meta recusa template com variável vazia.`,
       },
     };
   }
+
+  const componentes = envio.variaveis?.length
+    ? [{ type: 'body', parameters: envio.variaveis.map((text) => ({ type: 'text', text })) }]
+    : undefined;
 
   const resultado = await requisitar(creds, `${creds.numeroId}/messages`, {
     method: 'POST',
@@ -165,7 +179,11 @@ export async function enviarTemplate(
       messaging_product: 'whatsapp',
       to: envio.para,
       type: 'template',
-      template: { name: envio.template, language: { code: envio.idioma } },
+      template: {
+        name: envio.template,
+        language: { code: envio.idioma },
+        ...(componentes ? { components: componentes } : {}),
+      },
     }),
   }, buscar);
   if (!resultado.ok) return resultado;

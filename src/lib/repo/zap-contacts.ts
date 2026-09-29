@@ -87,6 +87,19 @@ export async function salvarContato(contato: EntradaContato): Promise<number> {
   return rows[0].id;
 }
 
+export async function situacaoDoContatoZap(id: number): Promise<{
+  consentimento: Consentimento;
+  descadastroEm: Date | null;
+} | null> {
+  const rows = (await sql`
+    select consentimento, descadastro_em
+    from zap_contacts where id = ${id}
+  `) as { consentimento: Consentimento; descadastro_em: Date | null }[];
+  return rows[0]
+    ? { consentimento: rows[0].consentimento, descadastroEm: rows[0].descadastro_em }
+    : null;
+}
+
 export async function listarContatos(busca = ''): Promise<ContatoZap[]> {
   const termo = busca.trim();
   const padrao = `%${escaparBuscaIlike(termo)}%`;

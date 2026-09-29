@@ -206,12 +206,38 @@ describe('enviarTemplate', () => {
     expect(JSON.stringify(resultado)).not.toMatch(/5511999999999|wamid\.|ABC123/);
   });
 
-  it('recusa variáveis preenchidas sem inventar campos nem disparar envio incompleto', async () => {
+  /**
+   * O formato posicional da Cloud API, que é o que o nosso criador de
+   * templates escreve: `{{1}}` vira o primeiro parâmetro do corpo, na ordem.
+   */
+  it('manda as variáveis como parâmetros do corpo, na ordem', async () => {
     const buscar = resposta(aceito);
-    expect(await enviarTemplate(creds, { ...envio, variaveis: ['Rafa'] }, buscar)).toEqual({
+    expect(await enviarTemplate(creds, { ...envio, variaveis: ['Maria', 'terça'] }, buscar)).toEqual({
+      ok: true, dados: { id: 'wamid....', estado: 'accepted' },
+    });
+    const corpo = JSON.parse(String(buscar.mock.calls[0][1]?.body));
+    expect(corpo.template.components).toEqual([
+      { type: 'body', parameters: [{ type: 'text', text: 'Maria' }, { type: 'text', text: 'terça' }] },
+    ]);
+  });
+
+  // Template sem variável não pode ganhar um `components` vazio: a Meta trata
+  // isso como parâmetro a mais e recusa.
+  it('sem variáveis, não inventa components', async () => {
+    const buscar = resposta(aceito);
+    await enviarTemplate(creds, envio, buscar);
+    expect(JSON.parse(String(buscar.mock.calls[0][1]?.body)).template).not.toHaveProperty('components');
+    await enviarTemplate(creds, { ...envio, variaveis: [] }, buscar);
+    expect(JSON.parse(String(buscar.mock.calls[1][1]?.body)).template).not.toHaveProperty('components');
+  });
+
+  // A Meta recusa variável vazia com um erro que não diz qual delas falhou.
+  it('variável vazia é recusada aqui, nomeando a posição, sem gastar requisição', async () => {
+    const buscar = resposta(aceito);
+    expect(await enviarTemplate(creds, { ...envio, variaveis: ['Maria', '  '] }, buscar)).toEqual({
       ok: false, erro: {
-        tipo: 'permanente', codigo: 'VARIAVEIS_NAO_SUPORTADAS',
-        humano: 'O envio com variáveis ainda não tem formato validado neste adaptador. Use um template sem variáveis.',
+        tipo: 'permanente', codigo: 'VARIAVEL_VAZIA',
+        humano: 'A variável {{2}} ficou sem valor. A Meta recusa template com variável vazia.',
       },
     });
     expect(buscar).not.toHaveBeenCalled();

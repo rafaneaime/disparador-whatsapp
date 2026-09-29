@@ -2,10 +2,13 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import {
   SESSION_COOKIE,
-  sessionValue,
+  createSession,
+  SESSION_MAX_AGE_SECONDS,
   checkPassword,
   temSenhaConfigurada,
+  isLoggedIn,
 } from '@/lib/auth';
+import { reserveLoginAttempt, resetLoginFailures } from '@/lib/repo/panel-login-attempts';
 
 export const runtime = 'nodejs';
 
@@ -16,19 +19,35 @@ export default async function LoginPage({
 }) {
   const { erro } = await searchParams;
   const configurada = temSenhaConfigurada();
+  const loggedIn = await isLoggedIn();
+
+  async function sair() {
+    'use server';
+    (await cookies()).delete(SESSION_COOKIE);
+    redirect('/login');
+  }
 
   async function entrar(formData: FormData) {
     'use server';
     const senha = String(formData.get('senha') ?? '');
 
+    let allowed = false;
+    try {
+      allowed = await reserveLoginAttempt();
+    } catch (error) {
+      console.error('login: controle de tentativas indisponível; aplique a migração 024', error);
+      redirect('/login?erro=config');
+    }
+    if (!allowed) redirect('/login?erro=limite');
     if (!checkPassword(senha)) redirect('/login?erro=1');
+    await resetLoginFailures();
 
-    (await cookies()).set(SESSION_COOKIE, sessionValue(), {
+    (await cookies()).set(SESSION_COOKIE, createSession(), {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     });
     redirect('/');
   }
@@ -36,6 +55,14 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-6">
       <h1 className="mb-1 text-2xl font-semibold">Painel</h1>
+
+      {loggedIn && (
+        <form action={sair} className="mb-6">
+          <button type="submit" className="rounded-lg bg-tinta px-4 py-2 text-sm font-medium text-papel">
+            Encerrar sessão
+          </button>
+        </form>
+      )}
 
       {configurada ? (
         <p className="mb-6 text-sm text-tinta-fraca">
@@ -73,7 +100,15 @@ export default async function LoginPage({
         >
           Entrar
         </button>
-        {erro && <p className="text-sm text-caindo-forte">Senha incorreta.</p>}
+        {erro && (
+          <p className="text-sm text-caindo-forte">
+            {erro === 'limite'
+              ? 'Muitas tentativas. Aguarde dez minutos e tente novamente.'
+              : erro === 'config'
+                ? 'Login indisponível: aplique a migração 024 no banco e tente novamente.'
+                : 'Senha incorreta.'}
+          </p>
+        )}
       </form>
     </main>
   );
