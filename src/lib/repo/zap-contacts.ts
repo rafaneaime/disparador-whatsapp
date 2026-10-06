@@ -87,6 +87,30 @@ export async function salvarContato(contato: EntradaContato): Promise<number> {
   return rows[0].id;
 }
 
+/**
+ * Acha o contato do WhatsApp pelo telefone, sem criar nada.
+ *
+ * `salvarContato` cria quando não existe, e cria carregando consentimento —
+ * é o que a tela faz depois que alguém marcou a caixinha confirmando. Quem só
+ * quer saber se a pessoa pode receber mensagem não pode usar aquela porta:
+ * perguntar não é o mesmo que autorizar.
+ */
+export async function acharContatoZapPorTelefone(telefone: unknown): Promise<{
+  id: number;
+  consentimento: Consentimento;
+  descadastroEm: Date | null;
+} | null> {
+  const numero = normalizarTelefone(telefone);
+  if (!numero) return null;
+  const rows = (await sql`
+    select id, consentimento, descadastro_em
+    from zap_contacts where telefone = ${numero}
+  `) as { id: number; consentimento: Consentimento; descadastro_em: Date | null }[];
+  return rows[0]
+    ? { id: rows[0].id, consentimento: rows[0].consentimento, descadastroEm: rows[0].descadastro_em }
+    : null;
+}
+
 export async function situacaoDoContatoZap(id: number): Promise<{
   consentimento: Consentimento;
   descadastroEm: Date | null;

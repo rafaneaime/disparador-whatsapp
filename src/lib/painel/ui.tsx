@@ -253,6 +253,34 @@ export function Botao({
  */
 const USUARIO_DO_INSTAGRAM = /^[A-Za-z0-9._]{1,30}$/;
 
+/**
+ * Como chamar quem não tem arroba.
+ *
+ * Contato que nasceu do formulário do site tem identificador `site:…`, e
+ * mostrar isso na tela seria pior que não mostrar nada: parece um número do
+ * Instagram, não abre perfil nenhum e não diz quem é a pessoa. Contato do
+ * Instagram sem username continua mostrando o número — é o que a pessoa tem
+ * para procurar, e o botão de buscar perfis existe justamente para resolvê-lo.
+ *
+ * A regra é o prefixo `site:`, o mesmo que `src/lib/identidade/do-formulario`
+ * grava. Repetido aqui de propósito: esta tela viaja no pacote base, e aquele
+ * arquivo não.
+ */
+export function semArroba(igUserId: string): string {
+  return igUserId.startsWith('site:') ? 'Cadastro pelo site' : igUserId;
+}
+
+/** O nome que a lista mostra: nome, arroba, ou o que sobrar. */
+export function nomeNaTela(pessoa: {
+  nome?: string | null;
+  username: string | null;
+  igUserId: string;
+}): string {
+  if (pessoa.nome) return pessoa.nome;
+  if (pessoa.username) return `@${pessoa.username}`;
+  return semArroba(pessoa.igUserId);
+}
+
 export function PerfilDoInstagram({
   username,
   igUserId,
@@ -269,7 +297,7 @@ export function PerfilDoInstagram({
   if (!username || !USUARIO_DO_INSTAGRAM.test(username)) {
     // Sem link, o ícone não significa nada e vira ruído na linha.
     if (rotulo !== undefined) return null;
-    return <span className={className}>{username ? `@${username}` : igUserId}</span>;
+    return <span className={className}>{username ? `@${username}` : semArroba(igUserId)}</span>;
   }
 
   return (

@@ -135,3 +135,20 @@ export function componentesParaMeta(rascunho: ComponenteDeTexto): unknown[] {
   }
   return [corpo];
 }
+
+/**
+ * O texto do template, de dentro dos componentes.
+ *
+ * Template sincronizado da Meta chega sem componentes - a listagem dela nao os
+ * traz -, e nesses casos a resposta e string vazia. Quem mostra precisa dizer
+ * "o painel nao tem o texto deste" em vez de deixar a tela muda ou, pior,
+ * inventar um texto que nao e o de la.
+ */
+export function corpoDoTemplate(componentes: unknown): string {
+  if (!Array.isArray(componentes)) return '';
+  for (const parte of componentes) {
+    const p = parte as { type?: unknown; text?: unknown };
+    if (String(p?.type).toUpperCase() === 'BODY' && typeof p.text === 'string') return p.text;
+  }
+  return '';
+}

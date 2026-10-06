@@ -1,3 +1,4 @@
+import { corpoDoTemplate } from '@/lib/zap/template';
 import { Cartao, Chip, Secao, TituloDaTela, Vazio } from '@/lib/painel/ui';
 import { listarTemplates, type TemplateZap } from '@/lib/repo/zap-templates';
 import { EditorDeTemplate, type TemplateExistente } from './editor-de-template';
@@ -33,15 +34,6 @@ const categoria = (valor: string | null) =>
  * criados por aqui; nos outros, o editor abre com o nome novo e o corpo vazio,
  * em vez de inventar um texto que não é o de lá.
  */
-function corpoDoTemplate(componentes: unknown): string {
-  if (!Array.isArray(componentes)) return '';
-  for (const parte of componentes) {
-    const p = parte as { type?: unknown; text?: unknown };
-    if (String(p?.type).toUpperCase() === 'BODY' && typeof p.text === 'string') return p.text;
-  }
-  return '';
-}
-
 const paraEditor = (t: TemplateZap): TemplateExistente => ({
   id: t.id,
   nome: t.nome,
