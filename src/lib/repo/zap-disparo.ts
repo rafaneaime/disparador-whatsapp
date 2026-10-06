@@ -87,3 +87,32 @@ export async function listarFalhas(id: number): Promise<{ id: number; erro_codig
     order by id
   ` as { id: number; erro_codigo: string | null; erro_texto: string | null }[];
 }
+
+/**
+ * As campanhas com o andamento de cada uma, numa consulta só.
+ *
+ * A tela de campanhas pede as contagens por campanha quando alguém abre uma.
+ * O agente precisa do contrário: a lista inteira com o andamento junto, para
+ * responder "como está o disparo" sem uma ida ao banco por campanha.
+ */
+export async function listarCampanhasComProgresso(limite: number): Promise<{
+  id: number; nome: string; estado: EstadoCampanha; template_nome: string | null;
+  enviadas: number; falhas: number; pendentes: number; enviando: number; criada_em: Date;
+}[]> {
+  return await sql`
+    select c.id, c.nome, c.estado, t.nome as template_nome, c.criado_em as criada_em,
+      count(m.*) filter (where m.estado in ('enviada', 'entregue', 'lida'))::int as enviadas,
+      count(m.*) filter (where m.estado = 'falhou')::int as falhas,
+      count(m.*) filter (where m.estado = 'pendente')::int as pendentes,
+      count(m.*) filter (where m.estado = 'enviando')::int as enviando
+    from zap_campaigns c
+    left join zap_templates t on t.id = c.template_id
+    left join zap_messages m on m.campaign_id = c.id
+    group by c.id, c.nome, c.estado, t.nome, c.criado_em
+    order by c.criado_em desc, c.id desc
+    limit ${Math.max(1, Math.min(200, Math.trunc(limite)))}
+  ` as {
+    id: number; nome: string; estado: EstadoCampanha; template_nome: string | null;
+    enviadas: number; falhas: number; pendentes: number; enviando: number; criada_em: Date;
+  }[];
+}
