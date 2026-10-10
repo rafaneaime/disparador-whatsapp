@@ -40,3 +40,27 @@ describe('mesmaPessoa', () => {
     expect(mesmaPessoa(a, b)).toBe(esperado);
   });
 });
+
+describe('o telefone que o formulário do site aceita', () => {
+  /*
+   * A identidade guarda qualquer coisa com dez dígitos ou mais; o WhatsApp
+   * exige um número brasileiro completo. As duas regras discordando fizeram a
+   * ficha de um contato dizer "Telefone: 55519818222" e, logo abaixo, "ainda
+   * não há telefone identificado" — na mesma tela.
+   *
+   * A regra do WhatsApp está certa, e estes casos travam isso: o número que
+   * motivou a investigação não existe, e o DDD 55 continua passando.
+   */
+  it('recusa número incompleto, que é o que o formulário deixa passar', () => {
+    expect(normalizarTelefone('55519818222')).toBe(null);
+  });
+
+  it('não confunde o DDD 55 com o código do país', () => {
+    expect(normalizarTelefone('55998182222')).toBe('5555998182222');
+    expect(normalizarTelefone('5555998182222')).toBe('5555998182222');
+  });
+
+  it('o mesmo celular, com e sem o código do país, vira o mesmo número', () => {
+    expect(normalizarTelefone('51998182222')).toBe(normalizarTelefone('5551998182222'));
+  });
+});
