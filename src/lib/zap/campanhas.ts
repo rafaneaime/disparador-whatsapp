@@ -141,6 +141,9 @@ export async function sincronizarTemplatesDoPainel() {
       nome: t.name, idioma: t.language, categoria_meta: t.category,
       estado: ESTADOS_DE_TEMPLATE.has(estado) ? estado : 'disabled' as const,
       meta_id: t.id ?? null,
+      // Quem foi criado fora do painel só tem corpo por aqui. Ver `components`
+      // em `TemplateDaMeta`.
+      componentes: t.components ?? null,
       // Só quem foi rejeitado carrega motivo. Um template que voltou aprovado
       // depois de uma rejeição precisa perder o motivo antigo, senão a tela
       // continua mostrando a reprovação de uma versão que já passou.

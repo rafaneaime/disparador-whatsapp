@@ -226,21 +226,34 @@ describe('drenagem de um lote', () => {
 });
 
 describe('sincronização', () => {
-  // A listagem da Meta traz nome, idioma, estado, categoria, id e — quando há —
-  // o motivo da rejeição. **Não** traz os componentes, então estes continuam
-  // intocados: o que a pessoa escreveu localmente não pode ser apagado por uma
-  // sincronização que não sabe o conteúdo.
+  // A listagem da Meta traz nome, idioma, estado, categoria, id, o motivo da
+  // rejeição e — desde 27/10 — o corpo. Corpo que ela NÃO mandar não apaga o
+  // que está guardado: o que a pessoa escreveu localmente não pode ser perdido
+  // por uma sincronização que não soube o conteúdo.
   it('traz hello_world pelo par nome/idioma sem apagar os componentes locais', async () => {
     const r = await sincronizar();
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true, sincronizados: 1 });
     const q = consulta(0);
     expect(q.texto).toContain('on conflict (nome, idioma) do update set');
-    expect(q.texto).not.toContain('componentes =');
+    expect(q.texto).toContain('else zap_templates.componentes end');
     expect(JSON.parse(q.valores[0])).toEqual([{
       nome: 'hello_world', idioma: 'en_US', estado: 'approved',
-      categoria_meta: 'UTILITY', meta_id: null, motivo_rejeicao: null,
+      categoria_meta: 'UTILITY', meta_id: null, motivo_rejeicao: null, componentes: null,
     }]);
+  });
+
+  // O defeito de 27/10: template criado fora do painel chegava sem corpo e
+  // ficava assim, com texto em branco na tela e zero variáveis contra um
+  // template que tinha uma.
+  it('o corpo que a Meta manda é guardado', async () => {
+    const componentes = [{ type: 'BODY', text: 'Olá, {{1}}!' }];
+    listarTemplates.mockResolvedValue({
+      ok: true,
+      dados: [{ id: '11', name: 'boas_vindas_radar', language: 'pt_BR', status: 'APPROVED', category: 'UTILITY', components: componentes }],
+    });
+    expect((await sincronizar()).status).toBe(200);
+    expect(JSON.parse(consulta(0).valores[0])[0].componentes).toEqual(componentes);
   });
 
   it('guarda o motivo quando a Meta rejeita, e o descarta quando ela aprova', async () => {
@@ -254,8 +267,8 @@ describe('sincronização', () => {
 
     expect((await sincronizar()).status).toBe(200);
     expect(JSON.parse(consulta(0).valores[0])).toEqual([
-      { nome: 'convite', idioma: 'pt_BR', estado: 'rejected', categoria_meta: 'MARKETING', meta_id: '9', motivo_rejeicao: 'INVALID_FORMAT' },
-      { nome: 'aviso', idioma: 'pt_BR', estado: 'approved', categoria_meta: 'UTILITY', meta_id: '10', motivo_rejeicao: null },
+      { nome: 'convite', idioma: 'pt_BR', estado: 'rejected', categoria_meta: 'MARKETING', meta_id: '9', motivo_rejeicao: 'INVALID_FORMAT', componentes: null },
+      { nome: 'aviso', idioma: 'pt_BR', estado: 'approved', categoria_meta: 'UTILITY', meta_id: '10', motivo_rejeicao: null, componentes: null },
     ]);
   });
 

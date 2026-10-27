@@ -11,6 +11,38 @@ const creds = {
 const responder = (corpo: unknown, status = 200) =>
   vi.fn(async () => Response.json(corpo as object, { status }));
 
+/*
+ * 27/10/2026: `boas_vindas_radar` foi criado fora do painel e sincronizado. A
+ * tela passou a mostrar o nome com o texto em branco e zero variáveis — e o
+ * template de verdade tinha uma. Campanha montada assim sai com parâmetro a
+ * menos, e a Meta recusa cada mensagem.
+ */
+describe('listarTemplates traz o corpo do template', () => {
+  it('pede components à Meta', async () => {
+    const buscar = vi.fn(async (url: string) => Response.json({ data: [] }, { status: 200 }));
+    await listarTemplates(creds, buscar as never);
+    expect(buscar.mock.calls[0][0]).toContain('components');
+  });
+
+  it('devolve os componentes quando a Meta manda', async () => {
+    const componentes = [{ type: 'BODY', text: 'Olá, {{1}}!' }];
+    const r = await listarTemplates(creds, responder({
+      data: [{ name: 'boas_vindas', language: 'pt_BR', status: 'APPROVED', category: 'UTILITY', components: componentes }],
+    }) as never);
+
+    expect(r.ok && r.dados[0].components).toEqual(componentes);
+  });
+
+  // Ausente é diferente de vazio: vazio apagaria o corpo já guardado.
+  it.each([[undefined], [null], ['texto solto']])('components %j não vira lista', async (valor) => {
+    const r = await listarTemplates(creds, responder({
+      data: [{ name: 'x', language: 'pt_BR', status: 'APPROVED', category: 'UTILITY', components: valor }],
+    }) as never);
+
+    expect(r.ok && 'components' in r.dados[0]).toBe(false);
+  });
+});
+
 describe('listarTemplates e o motivo da rejeição', () => {
   it('traz o motivo quando a Meta manda', async () => {
     const r = await listarTemplates(creds, responder({

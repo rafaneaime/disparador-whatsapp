@@ -276,8 +276,10 @@ describe('listarTemplates', () => {
     const [url, opcoes] = buscar.mock.calls[0];
     // `rejected_reason` e `id` entraram em 08/09: sem pedi-los, a coluna
     // `motivo_rejeicao` nunca era preenchida e a rejeição não ensinava nada.
+    // `components` entrou em 27/10, pelo mesmo motivo: sem ele, template criado
+    // fora do painel ficava sem corpo e sem contagem de variáveis.
     expect(url).toBe(
-      'https://graph.facebook.com/v99.0/conta-id/message_templates?fields=id,name,language,status,category,rejected_reason',
+      'https://graph.facebook.com/v99.0/conta-id/message_templates?fields=id,name,language,status,category,rejected_reason,components',
     );
     expect(opcoes?.method).toBe('GET');
     expect(opcoes?.body).toBeUndefined();

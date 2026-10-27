@@ -52,6 +52,16 @@ export type TemplateDaMeta = {
    */
   id?: string;
   rejected_reason?: string;
+  /**
+   * O corpo do template, como a Meta guarda.
+   *
+   * Pedido desde 27/10/2026. Antes a listagem só trazia o resumo, e template
+   * criado FORA do painel — pelo portal da Meta, ou por outra ferramenta —
+   * ficava para sempre sem corpo aqui dentro: a tela mostrava o nome sem o
+   * texto, e a campanha saía com zero variáveis contra um template que tinha
+   * uma. A Meta recusava cada mensagem, uma a uma, por número de parâmetros.
+   */
+  components?: unknown[];
 };
 
 // Só acrescentar códigos quando houver evidência observada em produção.
@@ -217,7 +227,7 @@ export async function listarTemplates(
   buscar: typeof fetch = fetch,
 ): Promise<ResultadoDaMeta<TemplateDaMeta[]>> {
   const resultado = await requisitar(creds,
-    `${creds.contaDoWhatsAppBusinessId}/message_templates?fields=id,name,language,status,category,rejected_reason`,
+    `${creds.contaDoWhatsAppBusinessId}/message_templates?fields=id,name,language,status,category,rejected_reason,components`,
     { method: 'GET', cache: 'no-store' }, buscar);
   if (!resultado.ok) return resultado;
 
@@ -227,7 +237,7 @@ export async function listarTemplates(
 
   const templates: TemplateDaMeta[] = [];
   for (const item of data) {
-    const { id, name, language, status, category, rejected_reason } = objeto(item);
+    const { id, name, language, status, category, rejected_reason, components } = objeto(item);
     if (!texto(name) || !texto(language) || !texto(status) || !texto(category)) {
       return respostaInvalida(invalida);
     }
@@ -237,6 +247,9 @@ export async function listarTemplates(
       status,
       category,
       ...(texto(id) ? { id } : {}),
+      // Ausente não derruba a listagem, e não vira lista vazia: lista vazia
+      // seria "template sem corpo", que apagaria o corpo que já está guardado.
+      ...(Array.isArray(components) ? { components } : {}),
       // A Meta manda "NONE" quando não houve rejeição. Guardar isso como motivo
       // faria a tela dizer que o template foi rejeitado por "NONE".
       ...(texto(rejected_reason) && rejected_reason.toUpperCase() !== 'NONE'

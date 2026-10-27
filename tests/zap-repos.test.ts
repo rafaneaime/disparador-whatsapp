@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { sql } = vi.hoisted(() => ({ sql: vi.fn() }));
 vi.mock('../src/lib/db', () => ({ sql }));
 
-import { sincronizarTemplates, listarTemplates, acharTemplate } from '../src/lib/repo/zap-templates';
+import { sincronizarTemplates, sincronizarResumoTemplates, listarTemplates, acharTemplate } from '../src/lib/repo/zap-templates';
 import { salvarContato, listarContatos, marcarDescadastro } from '../src/lib/repo/zap-contacts';
 import { criarCampanha, mudarEstadoCampanha, tocarProgresso } from '../src/lib/repo/zap-campaigns';
 import { enfileirarCampanha, reivindicarLote, marcarResultado } from '../src/lib/repo/zap-messages';
@@ -51,6 +51,31 @@ describe('templates', () => {
   it('não consulta o banco para uma sincronização vazia', async () => {
     await sincronizarTemplates([]);
     expect(sql).not.toHaveBeenCalled();
+  });
+
+  /*
+   * O resumo passou a trazer o corpo em 27/10/2026: template criado fora do
+   * painel chegava sem `componentes` e ficava assim para sempre, com texto em
+   * branco na tela e zero variáveis contra um template que tinha uma.
+   *
+   * O corpo que a Meta não mandar não pode apagar o que já está guardado — daí
+   * o `case` em vez de `excluded.componentes` direto.
+   */
+  it('o resumo grava o corpo recebido e preserva o guardado quando ele não vem', async () => {
+    await sincronizarResumoTemplates([
+      { nome: 'com-corpo', idioma: 'pt_BR', estado: 'approved', categoria_meta: 'UTILITY',
+        componentes: [{ type: 'BODY', text: 'Olá, {{1}}!' }] },
+      { nome: 'sem-corpo', idioma: 'pt_BR', estado: 'approved', categoria_meta: 'UTILITY' },
+    ]);
+    const { texto, valores } = consulta();
+    expect(texto).toContain('componentes jsonb)');
+    expect(texto).toContain("coalesce(componentes, '[]'::jsonb)");
+    expect(texto).toContain("jsonb_array_length(coalesce(excluded.componentes, '[]'::jsonb)) > 0");
+    expect(texto).toContain('else zap_templates.componentes end');
+
+    const recebidos = JSON.parse(valores[0] as string) as Record<string, unknown>[];
+    expect(recebidos[0].componentes).toEqual([{ type: 'BODY', text: 'Olá, {{1}}!' }]);
+    expect(recebidos[1].componentes).toBeUndefined();
   });
 
   it.each(['', 'approved'] as const)('lista templates com bandeira de estado %s', async (estado) => {

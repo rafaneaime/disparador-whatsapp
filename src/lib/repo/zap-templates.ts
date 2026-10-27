@@ -105,30 +105,41 @@ export async function acharTemplatePorId(id: number): Promise<TemplateZap | null
 }
 
 /**
- * O retrato que a listagem da Meta devolve. Não traz componentes — por isso não
- * apaga os locais.
+ * O retrato que a listagem da Meta devolve.
  *
  * `motivo_rejeicao` entrou em 08/09. Antes disso a coluna nunca era preenchida,
  * porque o adaptador nem pedia o campo à Meta: a pessoa via "rejeitado" sem
  * saber por quê, que é inútil justamente para quem ajusta e submete de novo.
+ *
+ * `componentes` entrou em 27/10, pelo mesmo motivo e com o mesmo formato de
+ * defeito: o adaptador não pedia o campo, e quem foi criado fora do painel
+ * ficava sem corpo — nome na tela, texto em branco, zero variáveis contra um
+ * template que tinha uma. Corpo que não vier não apaga o que já existe.
  */
 export async function sincronizarResumoTemplates(templates: {
   nome: string; idioma: string; estado: EstadoTemplate; categoria_meta: string;
   meta_id?: string | null; motivo_rejeicao?: string | null;
+  componentes?: unknown[] | null;
 }[]): Promise<void> {
   const unicos = new Map(templates.map(t => [JSON.stringify([t.nome, t.idioma]), t]));
   await sql`
     with recebidos as (
       select * from jsonb_to_recordset(${JSON.stringify([...unicos.values()])}::jsonb)
         as t(nome text, idioma text, estado text, categoria_meta text,
-             meta_id text, motivo_rejeicao text)
+             meta_id text, motivo_rejeicao text, componentes jsonb)
     ), atualizados as (
-      insert into zap_templates (nome, idioma, estado, categoria_meta, meta_id, motivo_rejeicao, sincronizado_em)
-      select nome, idioma, estado, categoria_meta, meta_id, motivo_rejeicao, now() from recebidos
+      insert into zap_templates (nome, idioma, estado, categoria_meta, meta_id, motivo_rejeicao, componentes, sincronizado_em)
+      select nome, idioma, estado, categoria_meta, meta_id, motivo_rejeicao,
+        coalesce(componentes, '[]'::jsonb), now() from recebidos
       where true on conflict (nome, idioma) do update set
         estado = excluded.estado, categoria_meta = excluded.categoria_meta,
         meta_id = coalesce(excluded.meta_id, zap_templates.meta_id),
         motivo_rejeicao = excluded.motivo_rejeicao,
+        -- Corpo que não veio não apaga o que já estava guardado: a Meta pode
+        -- omitir os componentes de um template antigo, e o painel não pode
+        -- perder o texto por causa disso.
+        componentes = case when jsonb_array_length(coalesce(excluded.componentes, '[]'::jsonb)) > 0
+          then excluded.componentes else zap_templates.componentes end,
         sincronizado_em = now()
       returning id
     )
