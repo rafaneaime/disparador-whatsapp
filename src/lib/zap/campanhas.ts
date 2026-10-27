@@ -21,10 +21,6 @@ export function idValido(id: unknown): id is number {
   return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647;
 }
 
-export function temVariaveis(componentes: unknown[]): boolean {
-  return /\{\{[^}]+\}\}/.test(JSON.stringify(componentes));
-}
-
 function credenciais() {
   const { credenciais: creds } = lerCredenciais(process.env);
   if (!creds) throw new ErroCampanha('Configure a conexão com a Meta antes de continuar.');
